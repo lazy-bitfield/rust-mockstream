@@ -1,0 +1,5 @@
+[package]
+
+name = "mockstream"
+version = "0.0.1"
+authors = ["Alex Bogma <bitfield.alex@gmail.com>"]
