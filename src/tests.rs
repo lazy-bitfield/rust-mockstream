@@ -71,13 +71,13 @@ fn test_shared_mock_stream() {
 	let mut s = SharedMockStream::new();
 	let mut e = NetStream::Mocked(s.clone());
 
-	let source = [1, 2, 3, 4];
-	s.push_bytes_to_read(source.as_slice());
-
-	// reverse4 succeeded
+	// provide data to mock
+	s.push_bytes_to_read([1, 2, 3, 4].as_slice());
+	// check if io succeeded
 	assert_eq!(reverse4(&mut e), Ok(4));
+	// verify the data returned
+	assert_eq!(s.pop_bytes_written().as_slice(), [4, 3, 2, 1]);
+
 	// ensure no more bytes in stream
 	assert_eq!(e.read(&mut [0; 4]), Ok(0));
-	// check data written by reverse4
-	assert_eq!(s.pop_bytes_written().as_slice(), [4, 3, 2, 1]);
 }
