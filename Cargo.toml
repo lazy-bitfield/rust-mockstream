@@ -1,11 +1,16 @@
 [package]
 
 name = "mockstream"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["Alex Bogma <bitfield.alex@gmail.com>"]
 license = "MIT"
 description = "Stream (Read+Write traits) implementations to be used to mock real streams in tests."
 repository = "https://github.com/lazy-bitfield/rust-mockstream"
 readme = "README.md"
 keywords = ["test", "stream", "io", "mock"]
+
+[lib]
+name = "mockstream"
+path = "src/lib.rs"
+test = true
 
