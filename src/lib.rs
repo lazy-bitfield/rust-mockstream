@@ -11,6 +11,7 @@ use std::mem::swap;
 mod tests;
 
 /// MockStream is Read+Write stream that stores the data written and provides the data to be read.
+#[derive(Clone)]
 pub struct MockStream {
 	reader: Cursor<Vec<u8>>,
 	writer: Cursor<Vec<u8>>,
