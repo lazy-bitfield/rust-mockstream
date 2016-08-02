@@ -73,3 +73,44 @@ In tests, provide data to mock and verify the results after performing operation
 	// verify the data returned
 	assert_eq!(s.pop_bytes_written().as_slice(), [4, 3, 2, 1]);
 ```
+
+## I/O failures
+
+A mock simulating I/O errors is provided too. Combined with a Chain, this allows
+to simulate errors between reading data. See the following example where read_data
+performs 3 retries on I/O errors. This is verified in the test function below.
+
+```
+struct CountIo {}
+
+impl CountIo {
+	fn read_data(&self, r: &mut Read) -> usize {
+		let mut count: usize = 0;
+		let mut retries = 3;
+
+		loop {
+			let mut buffer = [0; 5];
+			match r.read(&mut buffer) {
+				Err(_) => {
+					if retries == 0 { break; }
+					retries -= 1;
+				},
+				Ok(0) => break,
+				Ok(n) => count += n,
+			}
+		}
+		count
+	}
+}
+
+#[test]
+fn test_io_retries() {
+	let mut c = Cursor::new(&b"1234"[..])
+			.chain(FailingMockStream::new(ErrorKind::Other, "Failing", 3))
+			.chain(Cursor::new(&b"5678"[..]));
+
+	let sut = CountIo {};
+	// this will fail unless read_data performs at least 3 retries on I/O errors
+	assert_eq!(8, sut.read_data(&mut c));
+}
+```
