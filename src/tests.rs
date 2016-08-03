@@ -1,5 +1,6 @@
-use super::{MockStream, SharedMockStream};
-use std::io::{Read,Write,Result};
+use super::{MockStream, SharedMockStream, FailingMockStream};
+use std::io::{Cursor, Read, Write, Result, ErrorKind};
+use std::error::Error;
 
 #[test]
 fn test_mock_stream_read() {
@@ -11,6 +12,16 @@ fn test_mock_stream_read() {
 }
 
 #[test]
+fn test_mock_stream_empty_and_fill() {
+	let mut s = MockStream::new();
+	let mut v = [11; 6];
+	assert_eq!(s.read(v.as_mut()).unwrap(), 0);
+	s.push_bytes_to_read("abcd".as_bytes());
+	assert_eq!(s.read(v.as_mut()).unwrap(), 4);
+	assert_eq!(s.read(v.as_mut()).unwrap(), 0);
+}
+
+#[test]
 fn test_mock_stream_read_lines() {
 	let mut s = MockStream::new();
 	s.push_bytes_to_read("abcd\r\ndcba\r\n".as_bytes());
@@ -19,6 +30,41 @@ fn test_mock_stream_read_lines() {
 	
 }
 
+#[test]
+fn test_failing_mock_stream_read() {
+	let mut s = FailingMockStream::new(ErrorKind::BrokenPipe, "The dog ate the ethernet cable", 1);
+	let mut v = [0; 4];
+	let error = s.read(v.as_mut()).unwrap_err();
+	assert_eq!(error.kind(), ErrorKind::BrokenPipe);
+	assert_eq!(error.description(), "The dog ate the ethernet cable");
+	// after a single error, it will return Ok(0)
+	assert_eq!(s.read(v.as_mut()).unwrap(), 0);
+}
+
+#[test]
+fn test_failing_mock_stream_chain() {
+	let mut s1 = MockStream::new();
+	s1.push_bytes_to_read("abcd".as_bytes());
+	let s2 = FailingMockStream::new(ErrorKind::Other, "Failing", -1);
+
+	let mut c = s1.chain(s2);
+	let mut v = [0; 8];
+	assert_eq!(c.read(v.as_mut()).unwrap(), 4);
+	assert_eq!(c.read(v.as_mut()).unwrap_err().kind(), ErrorKind::Other);
+	assert_eq!(c.read(v.as_mut()).unwrap_err().kind(), ErrorKind::Other);
+}
+
+#[test]
+fn test_failing_mock_stream_chain_interrupted() {
+	let mut c = Cursor::new(&b"abcd"[..])
+			.chain(FailingMockStream::new(ErrorKind::Interrupted, "Interrupted", 5))
+			.chain(Cursor::new(&b"ABCD"[..]));
+
+	let mut v = [0; 8];
+	c.read_exact(v.as_mut()).unwrap();
+	assert_eq!(v, [0x61, 0x62, 0x63, 0x64, 0x41, 0x42, 0x43, 0x44]);
+	assert_eq!(c.read(v.as_mut()).unwrap(), 0);
+}
 
 #[test]
 fn test_mock_stream_write() {
@@ -26,6 +72,16 @@ fn test_mock_stream_write() {
 	assert_eq!(s.write("abcd".as_bytes()).unwrap(), 4);
 	assert_eq!(s.pop_bytes_written().as_ref(), [97, 98, 99, 100]);
 	assert!(s.pop_bytes_written().is_empty());
+}
+
+#[test]
+fn test_failing_mock_stream_write() {
+	let mut s = FailingMockStream::new(ErrorKind::PermissionDenied, "Access denied", -1);
+	let error = s.write("abcd".as_bytes()).unwrap_err();
+	assert_eq!(error.kind(), ErrorKind::PermissionDenied);
+	assert_eq!(error.description(), "Access denied");
+	// it will keep failing
+	s.write("abcd".as_bytes()).unwrap_err();
 }
 
 

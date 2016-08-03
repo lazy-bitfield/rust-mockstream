@@ -4,7 +4,7 @@
 
 use std::rc::{Rc};
 use std::cell::{RefCell};
-use std::io::{Cursor,Read,Write,Result};
+use std::io::{Cursor, Read, Write, Result, Error, ErrorKind};
 use std::mem::swap;
 
 #[cfg(test)]
@@ -100,5 +100,90 @@ impl Write for SharedMockStream {
 
 	fn flush(&mut self) -> Result<()> {
 		self.pimpl.borrow_mut().flush()
+	}
+}
+
+/// `FailingMockStream` mocks a stream which will fail upon read or write
+///
+/// # Examples
+///
+/// ```
+/// use std::io::{Cursor, Read};
+///
+/// struct CountIo {}
+///
+/// impl CountIo {
+/// 	fn read_data(&self, r: &mut Read) -> usize {
+/// 		let mut count: usize = 0;
+/// 		let mut retries = 3;
+///
+/// 		loop {
+/// 			let mut buffer = [0; 5];
+/// 			match r.read(&mut buffer) {
+/// 				Err(_) => {
+/// 					if retries == 0 { break; }
+/// 					retries -= 1;
+/// 				},
+/// 				Ok(0) => break,
+/// 				Ok(n) => count += n,
+/// 			}
+/// 		}
+/// 		count
+/// 	}
+/// }
+///
+/// #[test]
+/// fn test_io_retries() {
+/// 	let mut c = Cursor::new(&b"1234"[..])
+/// 			.chain(FailingMockStream::new(ErrorKind::Other, "Failing", 3))
+/// 			.chain(Cursor::new(&b"5678"[..]));
+///
+/// 	let sut = CountIo {};
+/// 	// this will fail unless read_data performs at least 3 retries on I/O errors
+/// 	assert_eq!(8, sut.read_data(&mut c));
+/// }
+/// ```
+#[derive(Clone)]
+pub struct FailingMockStream {
+	kind: ErrorKind,
+	message: &'static str,
+	repeat_count: i32,
+}
+
+impl FailingMockStream {
+	/// Creates a FailingMockStream
+	///
+	/// When `read` or `write` is called, it will return an error `repeat_count` times.
+	/// `kind` and `message` can be specified to define the exact error.
+	pub fn new(kind: ErrorKind, message: &'static str, repeat_count: i32) -> FailingMockStream {
+		FailingMockStream { kind: kind, message: message, repeat_count: repeat_count, }
+	}
+
+	fn error(&mut self) -> Result<usize> {
+		if self.repeat_count == 0 {
+			return Ok(0)
+		}
+		else {
+			if self.repeat_count > 0 {
+				self.repeat_count -= 1;
+			}
+			Err(Error::new(self.kind, self.message))
+		}
+	}
+}
+
+impl Read for FailingMockStream {
+	fn read(&mut self, _: &mut [u8]) -> Result<usize> {
+		self.error()
+	}
+}
+
+impl Write for FailingMockStream {
+	fn write(&mut self, _: &[u8]) -> Result<usize> {
+		self.error()
+	}
+
+	fn flush(&mut self) -> Result<()> {
+		Ok(())
 	}
 }
