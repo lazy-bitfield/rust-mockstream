@@ -17,6 +17,12 @@ pub struct MockStream {
 	writer: Cursor<Vec<u8>>,
 }
 
+impl Default for MockStream {
+    fn default() -> Self {
+        MockStream::new()
+    }
+}
+
 fn new_cursor() -> Cursor<Vec<u8>> {
 	Cursor::new(Vec::new())
 }
@@ -65,7 +71,7 @@ impl Write for MockStream {
 
 
 /// Reference-counted stream.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct SharedMockStream {
 	pimpl: Rc<RefCell<MockStream>>
 }
