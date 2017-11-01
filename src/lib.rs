@@ -6,6 +6,7 @@ use std::rc::{Rc};
 use std::cell::{RefCell};
 use std::io::{Cursor, Read, Write, Result, Error, ErrorKind};
 use std::mem::swap;
+use std::sync::{Arc, Mutex};
 
 #[cfg(test)]
 mod tests;
@@ -100,6 +101,47 @@ impl Write for SharedMockStream {
 
 	fn flush(&mut self) -> Result<()> {
 		self.pimpl.borrow_mut().flush()
+	}
+}
+
+
+
+/// Thread-safe stream.
+#[derive(Clone)]
+pub struct SyncMockStream {
+	pimpl: Arc<Mutex<MockStream>>
+}
+
+impl SyncMockStream {
+	/// Create empty stream
+	pub fn new() -> SyncMockStream {
+		SyncMockStream { pimpl: Arc::new(Mutex::new(MockStream::new())) }
+	}
+
+	/// Extract all bytes written by Write trait calls.
+	pub fn push_bytes_to_read(&mut self, bytes: &[u8]) {
+		self.pimpl.lock().unwrap().push_bytes_to_read(bytes)
+	}
+
+	/// Provide data to be read by Read trait calls.
+	pub fn pop_bytes_written(&mut self) -> Vec<u8> {
+		self.pimpl.lock().unwrap().pop_bytes_written()
+	}
+}
+
+impl Read for SyncMockStream {
+	fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+		self.pimpl.lock().unwrap().read(buf)
+	}
+}
+
+impl Write for SyncMockStream {
+	fn write(&mut self, buf: &[u8]) -> Result<usize> {
+		self.pimpl.lock().unwrap().write(buf)
+	}
+
+	fn flush(&mut self) -> Result<()> {
+		self.pimpl.lock().unwrap().flush()
 	}
 }
 

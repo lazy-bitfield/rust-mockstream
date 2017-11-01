@@ -1,4 +1,4 @@
-use super::{MockStream, SharedMockStream, FailingMockStream};
+use super::{MockStream, SharedMockStream, SyncMockStream, FailingMockStream};
 use std::io::{Cursor, Read, Write, Result, ErrorKind};
 use std::error::Error;
 
@@ -141,4 +141,23 @@ fn test_shared_mock_stream() {
 
 	// ensure no more bytes in stream
 	assert_eq!(e.read(&mut [0; 4]).unwrap(), 0);
+}
+
+#[test]
+fn test_sync_mock_stream() {
+    use std::thread;
+	let mut s = SyncMockStream::new();
+    let mut s2 = s.clone();
+
+    // thread will write some bytes, and then read some bytes
+    s.push_bytes_to_read(&[5, 6, 7, 8]);
+    let read = thread::spawn(move || {
+        s2.write_all(&[1, 2, 3, 4]).unwrap();
+        let mut buf = Vec::new();
+        s2.read_to_end(&mut buf).unwrap();
+        buf
+    }).join().unwrap();
+
+    assert_eq!(s.pop_bytes_written(), &[1, 2, 3, 4]);
+    assert_eq!(read, &[5, 6, 7, 8]);
 }
