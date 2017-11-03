@@ -12,6 +12,15 @@ fn test_mock_stream_read() {
 }
 
 #[test]
+fn test_mock_stream_pop_again() {
+	let mut s = MockStream::new();
+	s.write_all(b"abcd").unwrap();
+	assert_eq!(s.pop_bytes_written(), b"abcd");
+	s.write_all(b"efgh").unwrap();
+	assert_eq!(s.pop_bytes_written(), b"efgh");
+}
+
+#[test]
 fn test_mock_stream_empty_and_fill() {
 	let mut s = MockStream::new();
 	let mut v = [11; 6];

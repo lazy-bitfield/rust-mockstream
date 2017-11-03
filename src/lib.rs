@@ -40,6 +40,7 @@ impl MockStream {
 	pub fn pop_bytes_written(&mut self) -> Vec<u8> {
 		let mut result = Vec::new();
 		swap(&mut result, self.writer.get_mut());
+		self.writer.set_position(0);
 		result
 	}
 
