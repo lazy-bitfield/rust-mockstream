@@ -81,7 +81,7 @@ pub struct SharedMockStream {
 impl SharedMockStream {
 	/// Create empty stream
 	pub fn new() -> SharedMockStream {
-		SharedMockStream { pimpl: Rc::new(RefCell::new(MockStream::new())) }
+		SharedMockStream::default()
 	}
 
 	/// Extract all bytes written by Write trait calls.
@@ -114,7 +114,7 @@ impl Write for SharedMockStream {
 
 
 /// Thread-safe stream.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct SyncMockStream {
 	pimpl: Arc<Mutex<MockStream>>
 }
@@ -122,7 +122,7 @@ pub struct SyncMockStream {
 impl SyncMockStream {
 	/// Create empty stream
 	pub fn new() -> SyncMockStream {
-		SyncMockStream { pimpl: Arc::new(Mutex::new(MockStream::new())) }
+		SyncMockStream::default()
 	}
 
 	/// Extract all bytes written by Write trait calls.
