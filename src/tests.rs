@@ -1,5 +1,4 @@
 use super::{FailingMockStream, MockStream, SharedMockStream, SyncMockStream};
-use std::error::Error;
 use std::io::{Cursor, ErrorKind, Read, Result, Write};
 
 #[test]
@@ -48,7 +47,7 @@ fn test_failing_mock_stream_read() {
     let mut v = [0; 4];
     let error = s.read(v.as_mut()).unwrap_err();
     assert_eq!(error.kind(), ErrorKind::BrokenPipe);
-    assert_eq!(error.description(), "The dog ate the ethernet cable");
+    assert_eq!(error.to_string(), "The dog ate the ethernet cable");
     // after a single error, it will return Ok(0)
     assert_eq!(s.read(v.as_mut()).unwrap(), 0);
 }
@@ -95,7 +94,7 @@ fn test_failing_mock_stream_write() {
     let mut s = FailingMockStream::new(ErrorKind::PermissionDenied, "Access denied", -1);
     let error = s.write("abcd".as_bytes()).unwrap_err();
     assert_eq!(error.kind(), ErrorKind::PermissionDenied);
-    assert_eq!(error.description(), "Access denied");
+    assert_eq!(error.to_string(), "Access denied");
     // it will keep failing
     s.write("abcd".as_bytes()).unwrap_err();
 }
@@ -136,7 +135,7 @@ impl Write for NetStream {
 /// read 4 bytes from network, reverse them and write back
 fn reverse4(s: &mut NetStream) -> Result<usize> {
     let mut v = [0; 4];
-    let count = try![s.read(v.as_mut())];
+    let count = s.read(v.as_mut())?;
     assert_eq!(count, 4);
     v.reverse();
     s.write(v.as_ref())

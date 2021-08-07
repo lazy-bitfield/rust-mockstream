@@ -51,7 +51,7 @@ impl MockStream {
         if self.reader.position() == avail as u64 {
             self.reader = new_cursor();
         }
-        self.reader.get_mut().extend(bytes.iter().map(|c| *c));
+        self.reader.get_mut().extend(bytes.iter().copied());
     }
 }
 
@@ -62,7 +62,7 @@ impl Read for MockStream {
 }
 
 impl Write for MockStream {
-    fn write<'a>(&mut self, buf: &'a [u8]) -> Result<usize> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize> {
         self.writer.write(buf)
     }
 
@@ -203,15 +203,15 @@ impl FailingMockStream {
     /// `kind` and `message` can be specified to define the exact error.
     pub fn new(kind: ErrorKind, message: &'static str, repeat_count: i32) -> FailingMockStream {
         FailingMockStream {
-            kind: kind,
-            message: message,
-            repeat_count: repeat_count,
+            kind,
+            message,
+            repeat_count,
         }
     }
 
     fn error(&mut self) -> Result<usize> {
         if self.repeat_count == 0 {
-            return Ok(0);
+            Ok(0)
         } else {
             if self.repeat_count > 0 {
                 self.repeat_count -= 1;
