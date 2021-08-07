@@ -6,10 +6,22 @@ use std::cell::RefCell;
 use std::io::{Cursor, Error, ErrorKind, Read, Result, Write};
 use std::mem::swap;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::thread::sleep;
+use std::time;
 
 #[cfg(test)]
 mod tests;
+
+fn find_subsequence<T>(haystack: &[T], needle: &[T]) -> Option<usize>
+where
+    for<'a> &'a [T]: PartialEq,
+{
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
+}
 
 /// MockStream is Read+Write stream that stores the data written and provides the data to be read.
 #[derive(Clone)]
@@ -35,6 +47,11 @@ impl MockStream {
             reader: new_cursor(),
             writer: new_cursor(),
         }
+    }
+
+    /// Extract all bytes written by Write trait calls.
+    pub fn peek_bytes_written(&mut self) -> &Vec<u8> {
+        self.writer.get_ref()
     }
 
     /// Extract all bytes written by Write trait calls.
@@ -114,12 +131,20 @@ impl Write for SharedMockStream {
 #[derive(Clone, Default)]
 pub struct SyncMockStream {
     pimpl: Arc<Mutex<MockStream>>,
+    pub waiting_for_write: Arc<AtomicBool>,
+    pub expected_bytes: Vec<u8>,
 }
 
 impl SyncMockStream {
     /// Create empty stream
     pub fn new() -> SyncMockStream {
         SyncMockStream::default()
+    }
+
+    /// Block reads until expected bytes are written.
+    pub fn wait_for(&mut self, expected_bytes: &[u8]) {
+        self.expected_bytes = expected_bytes.to_vec();
+        self.waiting_for_write.store(true, Ordering::Relaxed);
     }
 
     /// Extract all bytes written by Write trait calls.
@@ -135,13 +160,27 @@ impl SyncMockStream {
 
 impl Read for SyncMockStream {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        while self.waiting_for_write.load(Ordering::Relaxed) {
+            sleep(time::Duration::from_millis(10));
+        }
         self.pimpl.lock().unwrap().read(buf)
     }
 }
 
 impl Write for SyncMockStream {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
-        self.pimpl.lock().unwrap().write(buf)
+        let mut x = self.pimpl.lock().unwrap();
+        match x.write(buf) {
+            Ok(rv) => {
+                if self.waiting_for_write.load(Ordering::Relaxed)
+                    && find_subsequence(x.peek_bytes_written(), &self.expected_bytes).is_some()
+                {
+                    self.waiting_for_write.store(false, Ordering::Relaxed);
+                }
+                Ok(rv)
+            }
+            Err(rv) => Err(rv),
+        }
     }
 
     fn flush(&mut self) -> Result<()> {

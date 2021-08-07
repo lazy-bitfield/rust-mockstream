@@ -177,3 +177,37 @@ fn test_sync_mock_stream() {
     assert_eq!(s.pop_bytes_written(), &[1, 2, 3, 4]);
     assert_eq!(read, &[5, 6, 7, 8]);
 }
+
+#[test]
+fn test_sync_mock_stream_wait_for() {
+    use std::thread;
+    use std::time::{Duration, SystemTime};
+    let mut s = SyncMockStream::new();
+
+    s.wait_for(&[3, 4]);
+
+    let mut s2 = s.clone();
+
+    // thread will write some bytes, and then read some bytes
+    s.push_bytes_to_read(&[5, 6, 7, 8]);
+    let read_thread = thread::spawn(move || {
+        let mut buf = Vec::new();
+        s2.read_to_end(&mut buf).unwrap();
+        let read_ts = SystemTime::now();
+        (buf, read_ts)
+    });
+
+    let write_thread = thread::spawn(move || {
+        thread::sleep(Duration::new(2, 0));
+        s.write_all(&[1, 2, 3, 4]).unwrap();
+        let write_ts = SystemTime::now();
+        (s.pop_bytes_written(), write_ts)
+    });
+
+    let (read, read_ts) = read_thread.join().unwrap();
+    let (write, write_ts) = write_thread.join().unwrap();
+
+    assert_eq!(write, &[1, 2, 3, 4]);
+    assert_eq!(read, &[5, 6, 7, 8]);
+    assert!(read_ts > write_ts);
+}
